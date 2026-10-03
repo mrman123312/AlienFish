@@ -50,7 +50,7 @@ class Legacy {
     std::filesystem::path file;
     std::string model;
     Policy policy;
-    bool configured = false, writable = true;
+    bool configured = false, writable = true, indexLimited = false;
     usize recordCount = 0, evidenceCount = 0, rejected = 0;
     std::unordered_map<std::string, std::vector<Record>> bank;
     std::vector<std::pair<Record, bool>> pending;

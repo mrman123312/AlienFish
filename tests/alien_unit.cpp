@@ -77,7 +77,10 @@ int main(int argc, char** argv) {
         fs::create_directory(fs::path(file.string() + ".lock"));
         CHECK(!bank.flush().empty());
         CHECK(!bank.configure(dir / "other.afl", "different-network", {12, 0, 20, 10}));
+        CHECK(!bank.configure(file, "official-network", {12, 0, 20, 1}));
         fs::remove(fs::path(file.string() + ".lock"));
+        CHECK(bank.configure(file, "official-network", {12, 0, 20, 1}));
+        CHECK(bank.size() == 1);  // Retry a blocked capacity change without losing its intent
         CHECK(bank.flush().empty());
         { std::ofstream out(file, std::ios::app); out << "broken\nP torn record"; }
         Alien::Legacy damaged;
@@ -109,6 +112,12 @@ int main(int argc, char** argv) {
         CHECK(refuted.flush().empty());
         CHECK(refuted.configure(file, "official-network", {12, 0, 20, 1}));
         CHECK(refuted.size() == 1);  // Lowered capacities are enforced on reconfigure
+        const auto completeSize = fs::file_size(file);
+        CHECK(!refuted.compact().empty());  // A partial memory index must not replace the full journal
+        CHECK(fs::file_size(file) == completeSize);
+        CHECK(refuted.configure(file, "official-network", {12, 0, 20, 10}));
+        CHECK(refuted.size() == 2);
+        CHECK(refuted.compact().empty());
         Alien::Legacy guarded;
         CHECK(guarded.configure(dir / "gates.afl", "official-network", {12, 0, 20, 1}));
         guarded.observe(root, {strong, near}, 10000, false);

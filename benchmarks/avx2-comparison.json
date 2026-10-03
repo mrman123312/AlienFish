@@ -6,84 +6,84 @@
     "baseline": [
       {
         "nodes": 2407430,
-        "nps": 989490,
-        "ms": 2433
+        "nps": 1003513,
+        "ms": 2399
       },
       {
         "nodes": 2407430,
-        "nps": 929150,
-        "ms": 2591
+        "nps": 1017080,
+        "ms": 2367
       },
       {
         "nodes": 2407430,
-        "nps": 1040375,
-        "ms": 2314
+        "nps": 990711,
+        "ms": 2430
       },
       {
         "nodes": 2407430,
-        "nps": 977438,
-        "ms": 2463
+        "nps": 1014081,
+        "ms": 2374
       },
       {
         "nodes": 2407430,
-        "nps": 1046253,
-        "ms": 2301
+        "nps": 1057746,
+        "ms": 2276
       },
       {
         "nodes": 2407430,
-        "nps": 932750,
-        "ms": 2581
+        "nps": 993574,
+        "ms": 2423
       },
       {
         "nodes": 2407430,
-        "nps": 1002260,
-        "ms": 2402
+        "nps": 1014509,
+        "ms": 2373
       }
     ],
     "candidate": [
       {
         "nodes": 2407430,
-        "nps": 915720,
-        "ms": 2629
+        "nps": 1037238,
+        "ms": 2321
       },
       {
         "nodes": 2407430,
-        "nps": 915720,
-        "ms": 2629
+        "nps": 997278,
+        "ms": 2414
       },
       {
         "nodes": 2407430,
-        "nps": 1014936,
-        "ms": 2372
+        "nps": 1013228,
+        "ms": 2376
       },
       {
         "nodes": 2407430,
-        "nps": 1040375,
-        "ms": 2314
+        "nps": 1038132,
+        "ms": 2319
       },
       {
         "nodes": 2407430,
-        "nps": 1076668,
-        "ms": 2236
+        "nps": 1040825,
+        "ms": 2313
       },
       {
         "nodes": 2407430,
-        "nps": 1056817,
-        "ms": 2278
+        "nps": 1085895,
+        "ms": 2217
       },
       {
         "nodes": 2407430,
-        "nps": 987056,
-        "ms": 2439
+        "nps": 980623,
+        "ms": 2455
       }
     ]
   },
   "median_nps": {
-    "baseline": 989490,
-    "candidate": 1014936
+    "baseline": 1014081,
+    "candidate": 1037238
   },
   "note": "Local speed sample only; no Elo or Brilliant-mode strength claim.",
-  "candidate_speed_percent": 2.57,
+  "candidate_speed_percent": 2.28,
   "environment": {
     "date_utc": "2026-10-03",
     "platform": "Linux x86-64 (virtualized)",
@@ -102,6 +102,6 @@
   "candidate": {
     "build": "GCC -O3, AVX2, LTO, PGO; 27 source units instrumented and rebuilt with profiles",
     "mode": "Normal, AlienLegacy advice and learning disabled",
-    "binary_sha256": "b1287cbb9e9824dac5f3fb2b730c0d792064a594fa3ba8dbb28a827c79eb2382"
+    "binary_sha256": "000b294bd6737052d7b50bc1a87dc00d14a38d4689ee772a8ed4ff6e25059c8c"
   }
 }

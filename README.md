@@ -111,6 +111,8 @@ legacy learn e2e4 d2d4
 
 Use one trainer per frontier database. An `.afl.lock` directory serializes journal writers. If a process is killed while holding it, stop all writers and remove the stale directory before retrying. Compaction merges completed appends before replacing the journal. Network-incompatible banks require a new bank filename or explicit reanalysis with the original network.
 
+If the bank exceeds the configured memory capacity, `legacy status` reports `capacity_limited: true`. Advice can still use the loaded subset, but compaction refuses to replace the complete journal with that subset. Increase `AlienLegacy Capacity` before compacting; the saved file is preserved.
+
 ## Build extensive opening theory
 
 The explorer searches **every legal move** with full MultiPV, then repeats at a greater actual depth. It expands every move that qualifies in both passes; it does not impose a top-three or top-five branch cutoff. Its SQLite frontier deduplicates positions and resumes unfinished work.
@@ -153,7 +155,7 @@ python3 scripts/compare_speed.py \
 
 The script alternates engines, warms each one, uses one thread and enforces matching Normal-mode node counts. Timing varies with CPU load. Node parity supports preservation of this benchmark's search behaviour; it does not establish an Elo gain. The profile-build command is an implementation optimization whose speed must be measured on the target machine.
 
-The initial Linux AVX2 profile build measured **2.57% higher median nodes/second** than the unmodified `-O3`/LTO baseline without PGO, across seven alternating runs per engine. Every run searched the same **2,407,430 nodes**. See the [validation report](docs/Validation.md) and [raw timing samples](benchmarks/avx2-comparison.json) for the exact comparison and limits. The policy/storage suite and all eight integration tests passed locally.
+The initial Linux AVX2 profile build measured **2.28% higher median nodes/second** than the unmodified `-O3`/LTO baseline without PGO, across seven alternating runs per engine. Every run searched the same **2,407,430 nodes**. See the [validation report](docs/Validation.md) and [raw timing samples](benchmarks/avx2-comparison.json) for the exact comparison and limits. The policy/storage suite and all eight integration tests passed locally.
 
 The GitHub workflow builds the engine, runs the policy/storage and UCI tests, and produces a Linux AVX2 artifact. Windows build instructions are provided; a Windows runtime result is not claimed without running it there.
 

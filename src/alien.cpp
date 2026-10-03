@@ -148,11 +148,13 @@ std::string json_string(const std::string& value) {
 
 bool Legacy::configure(const std::filesystem::path& path, const std::string& network, Policy p) {
     const bool capacityChanged = p.capacity != policy.capacity;
-    policy = p;
-    if (configured && path == file && network == model && !capacityChanged)
+    if (configured && path == file && network == model && !capacityChanged) {
+        policy = p;
         return writable;
+    }
     if (!pending.empty() && !flush().empty())
         return false;  // Preserve unsaved records and their original network identity
+    policy = p;
     file = path;
     model = network;
     configured = true;
@@ -164,6 +166,7 @@ void Legacy::load() {
     bank.clear();
     pending.clear();
     recordCount = evidenceCount = rejected = 0;
+    indexLimited = false;
     error.clear();
     writable = true;
     std::error_code ec;
@@ -198,8 +201,10 @@ void Legacy::apply(const Record& r, bool remove) {
     const auto k = key(r);
     auto it = bank.find(k);
     if (it == bank.end()) {
-        if (evidenceCount >= policy.capacity)
+        if (evidenceCount >= policy.capacity) {
+            indexLimited = true;
             return;
+        }
         it = bank.emplace(k, std::vector<Record>{}).first;
     }
     auto& records = it->second;
@@ -220,6 +225,8 @@ void Legacy::apply(const Record& r, bool remove) {
         ++evidenceCount;
         recordCount += usize(!remove);
     }
+    else
+        indexLimited = true;
 }
 
 std::vector<std::string> Legacy::hints(const Position& pos) const {
@@ -315,6 +322,8 @@ std::string Legacy::compact() {
     // Include other writers' completed appends before replacing the journal.
     load();
     if (!writable) return error;
+    if (indexLimited)
+        return "AlienLegacy capacity is too small to compact the complete bank; increase capacity and retry; file preserved";
     auto temp = file;
     temp += ".tmp";
     std::ofstream out(temp, std::ios::binary | std::ios::trunc);
@@ -353,6 +362,7 @@ std::string Legacy::status() const {
         << ",\"positions\":" << positions << ",\"records\":" << recordCount
         << ",\"refutations\":" << evidenceCount - recordCount
         << ",\"pending\":" << pending.size() << ",\"rejected\":" << rejected
+        << ",\"capacity_limited\":" << (indexLimited ? "true" : "false")
         << ",\"capacity\":" << policy.capacity << ",\"error\":" << json_string(error) << '}';
     return out.str();
 }
