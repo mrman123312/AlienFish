@@ -162,6 +162,8 @@ void UCIEngine::loop() {
             engine.trace_eval();
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
+        else if (token == "legacy")
+            print_info_string(engine.legacy_command(is));
         else if (token == "export_net")
         {
             std::optional<std::filesystem::path> file;
@@ -174,7 +176,8 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nStockfish is a powerful chess engine for playing and analyzing."
+              << "\nAlienFish is a Stockfish-derived chess engine with persistent opening research"
+                 "\nand Brilliant! / Brilliant Legacy modes. See README.md for UCI options."
                  "\nIt is released as free software licensed under the GNU GPLv3 License."
                  "\nStockfish is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."

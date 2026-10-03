@@ -159,12 +159,22 @@ Option& Option::operator=(const std::string& v) {
 
     if (type == "combo")
     {
-        OptionsMap         comboMap;  // To have case insensitive compare
-        std::string        token;
+        // Parse complete choices, including spaces. Inserting each token
+        // into OptionsMap used to abort on the second repeated "var" token.
+        const CaseInsensitiveLess less;
+        std::string token, choice;
+        bool valid = false;
+        auto check = [&]() {
+            valid = valid || (!choice.empty() && !less(choice, v) && !less(v, choice));
+            choice.clear();
+        };
         std::istringstream ss(defaultValue);
-        while (ss >> token)
-            comboMap.add(token, Option());
-        if (!comboMap.count(v) || v == "var")
+        while (ss >> token) {
+            if (token == "var") check();
+            else choice += (choice.empty() ? "" : " ") + token;
+        }
+        check();
+        if (!valid || v == "var")
             return *this;
     }
 

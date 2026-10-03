@@ -317,6 +317,20 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
         for (const auto& m : MoveList<LEGAL>(pos))
             rootMoves.emplace_back(m);
 
+    // Saved evaluations are advice only: seed move order without installing
+    // an exact TT score or restricting the set of legal moves to search.
+    if (!limits.legacyHints.empty())
+    {
+        auto rank = [&](const Search::RootMove& rm) {
+            auto uci = UCIEngine::move(rm.pv[0], pos.is_chess960());
+            return std::find(limits.legacyHints.begin(), limits.legacyHints.end(), uci)
+                 - limits.legacyHints.begin();
+        };
+        std::stable_sort(rootMoves.begin(), rootMoves.end(), [&](const auto& a, const auto& b) {
+            return rank(a) < rank(b);
+        });
+    }
+
     Tablebases::Config tbConfig = Tablebases::rank_root_moves(options, pos, rootMoves);
 
     // After ownership transfer 'states' becomes empty, so if we stop the search
@@ -338,6 +352,8 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
             th->worker->nodes = th->worker->tbHits = th->worker->bestMoveChanges = 0;
             th->worker->nmpMinPly                                                = 0;
             th->worker->rootDepth                                                = 0;
+            th->worker->completedRootMoves.clear();
+            th->worker->completedRootDepth = 0;
             th->worker->rootMoves                                                = rootMoves;
             th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
             th->worker->rootState = setupStates->back();

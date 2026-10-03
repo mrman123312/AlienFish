@@ -161,6 +161,7 @@ struct RootMove {
     bool        inexactUpper     = false;  // one-sided bound here. See also `enum Bound` in types.h
     bool        previousScoreExact = false;
     int         selDepth           = 0;
+    int         verifiedDepth      = 0;  // Depth of this move's completed root search
     int         tbRank             = 0;
     Value       tbScore;
     RootPVMoves pv, previousPV;
@@ -187,6 +188,12 @@ struct LimitsType {
     int                      movestogo, depth, mate, perft, infinite;
     u64                      nodes;
     bool                     ponderMode;
+
+    // AlienFish root policy. Recursive search/evaluation remains unchanged.
+    usize                    alienCandidates = 1;
+    bool                     alienCapture = false;
+    bool                     alienStyle = false;
+    std::vector<std::string>  legacyHints;
 };
 
 
@@ -274,6 +281,7 @@ class SearchManager {
     using UpdateIter     = std::function<void(const InfoIteration&)>;
     using UpdateBestmove = std::function<void(std::string_view, std::string_view)>;
     using UpdateStart    = std::function<void()>;
+    using UpdateCompleted = std::function<Move(const Position&, const RootMoves&, Depth, u64, bool)>;
 
     struct UpdateContext {
         UpdateShort    onUpdateNoMoves;
@@ -281,6 +289,8 @@ class SearchManager {
         UpdateIter     onIter;
         UpdateBestmove onBestmove;
         UpdateStart    onStart;
+        UpdateCompleted onCompleted;
+        UpdateStart    onSearchEnd;
     };
 
 
@@ -387,6 +397,8 @@ class Worker {
     StateInfo rootState;
     RootMoves rootMoves;
     Depth     rootDepth;
+    RootMoves completedRootMoves;
+    Depth     completedRootDepth = 0;
     Value     rootDelta;
 
     PVMoves lastIterationIdxPV;

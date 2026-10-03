@@ -31,6 +31,8 @@
 #include <vector>
 
 #include "evaluate.h"
+#include "alien.h"
+#include "movegen.h"
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_common.h"
@@ -138,9 +140,35 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
           return std::nullopt;
       }));
 
+    options.add("AlienFish Mode", Option("Normal var Brilliant! var Brilliant Legacy", "Normal"));
+    options.add("AlienLegacy", Option(true));
+    options.add("AlienLegacy Learning", Option(true));
+    options.add("AlienLegacy File", Option("AlienLegacy.afl", [this](const Option&) {
+        configure_legacy();
+        return legacy.status();
+    }));
+    options.add("AlienLegacy Min Depth", Option(12, 1, 64));
+    options.add("AlienLegacy Min Advantage", Option(0, 0, 2000));
+    options.add("AlienLegacy Max Loss", Option(20, 0, 200));
+    options.add("AlienLegacy Capacity", Option(100000, 1, 5000000));
+    options.add("Brilliant Candidates", Option(4, 2, 32));
+    options.add("Brilliant Min Depth", Option(10, 1, 64));
+    options.add("Brilliant Max Loss", Option(15, 0, 200));
+    options.add("Brilliant Horizon", Option(16, 4, 32));
+
+    updateContext.onCompleted = [this](const Position& p, const Search::RootMoves& moves,
+                                     Depth depth, u64 nodes, bool tablebase) {
+        return completed_search(p, moves, depth, nodes, tablebase);
+    };
+    updateContext.onSearchEnd = [this]() {
+        if (auto message = legacy.flush(); !message.empty())
+            sync_cout << "info string " << message << sync_endl;
+    };
+
     threads.clear();
     threads.ensure_network_replicated();
     resize_threads();
+    configure_legacy();
 }
 
 std::variant<u64, PositionSetError>
@@ -152,11 +180,103 @@ Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
 
 void Engine::go(Search::LimitsType& limits) {
     assert(limits.perft == 0);
+    wait_for_search_finished();
     verify_network();
+
+    configure_legacy();
+    lastCompletedMoves.clear();
+    lastCompletedDepth = 0;
+    unrestrictedRoot = limits.searchmoves.empty();
+    gambitActive = false;
+    const bool style = options["AlienFish Mode"] != "Normal";
+    limits.alienStyle = style;
+    limits.alienCandidates = style ? usize(options["Brilliant Candidates"]) : usize(1);
+    limits.alienCapture = style || options["AlienLegacy Learning"] || int(options["MultiPV"]) > 1;
+    if (options["AlienLegacy"] && legacyReady)
+        limits.legacyHints = legacy.hints(pos);
+    if (options["AlienFish Mode"] == "Brilliant Legacy") {
+        const auto move = Alien::gambit_move(pos);
+        if (!move.empty() && (limits.searchmoves.empty()
+            || std::find(limits.searchmoves.begin(), limits.searchmoves.end(), move) != limits.searchmoves.end())) {
+            limits.searchmoves = {move};
+            limits.alienCandidates = 1;
+            gambitActive = true;
+            unrestrictedRoot = false;  // An explicit opening choice is not training evidence
+            sync_cout << "info string Brilliant Legacy: Alien Gambit opening choice " << move
+                      << "; speculative opening, excluded from AlienLegacy learning" << sync_endl;
+        }
+    }
 
     threads.start_thinking(options, pos, states, limits);
 }
 void Engine::stop() { threads.stop = true; }
+
+void Engine::configure_legacy() {
+    legacyReady = legacy.configure(path_from_utf8(std::string(options["AlienLegacy File"])),
+                     std::string(options["EvalFile"]),
+                     {int(options["AlienLegacy Min Depth"]), int(options["AlienLegacy Min Advantage"]),
+                      int(options["AlienLegacy Max Loss"]), usize(options["AlienLegacy Capacity"])});
+}
+
+Move Engine::completed_search(const Position& root, const Search::RootMoves& moves,
+                             Depth depth, u64 nodes, bool tablebase) {
+    lastCompletedMoves = moves;
+    lastCompletedDepth = depth;
+    lastTablebase = tablebase;
+    if (options["AlienLegacy Learning"] && !tablebase && legacyReady)
+        legacy.observe(root, moves, nodes, unrestrictedRoot);
+    if (options["AlienFish Mode"] == "Normal" || tablebase || gambitActive
+        || moves.empty() || depth < int(options["Brilliant Min Depth"]))
+        return Move::none();
+    Move selected = Alien::select_brilliant(root, moves, options["Brilliant Min Depth"],
+                                            options["Brilliant Max Loss"], options["Brilliant Horizon"]);
+    if (!moves.empty() && selected != Move::none() && selected != moves[0].pv[0]) {
+        auto chosen = std::find(moves.begin(), moves.end(), selected);
+        sync_cout << "info string Brilliant! selected " << UCIEngine::move(selected, root.is_chess960())
+                  << " score " << UCIEngine::format_score({chosen->score, root})
+                  << " sacrifice " << Alien::sacrifice_score(root, *chosen, options["Brilliant Horizon"])
+                  << sync_endl;
+    }
+    return selected != moves[0].pv[0] ? selected : Move::none();
+}
+
+std::string Engine::legacy_command(std::istream& in) {
+    wait_for_search_finished();
+    configure_legacy();
+    std::string command;
+    in >> command;
+    if (command == "status") return legacy.status();
+    if (command == "flush" || command == "compact") {
+        const auto error = command == "flush" ? legacy.flush() : legacy.compact();
+        return error.empty() ? legacy.status() : "AlienLegacy: " + error;
+    }
+    if (command == "candidates")
+        return Alien::candidates_json(pos, lastCompletedMoves, lastCompletedDepth);
+    if (command == "learn") {
+        std::vector<std::string> allowed;
+        std::string move;
+        while (in >> move) allowed.push_back(move);
+        if (allowed.empty()) return "AlienLegacy: learn requires explicit UCI moves";
+        if (!legacyReady || lastTablebase || !unrestrictedRoot || lastCompletedMoves.empty())
+            return "AlienLegacy: no eligible completed unrestricted analysis";
+        legacy.observe(pos, lastCompletedMoves, threads.nodes_searched(), true, allowed);
+        const auto error = legacy.flush();
+        return error.empty() ? legacy.status() : "AlienLegacy: " + error;
+    }
+    if (command == "child") {
+        std::string text;
+        in >> text;
+        Position child;
+        StateInfo st, next;
+        child.set(pos.fen(), pos.is_chess960(), &st);
+        Move m = UCIEngine::to_move(child, text);
+        if (m == Move::none()) return "AlienLegacy: illegal child move";
+        child.do_move(m, next);
+        return "{\"fen\":" + Alien::json_string(child.fen()) + ",\"key\":"
+             + Alien::json_string(Alien::position_key(child)) + '}';
+    }
+    return "AlienLegacy commands: status, flush, compact, candidates, child <uci move>, learn <uci moves>";
+}
 
 void Engine::search_clear() {
     wait_for_search_finished();
@@ -194,6 +314,9 @@ void Engine::wait_for_search_finished() { threads.main_thread()->wait_for_search
 
 std::optional<PositionSetError> Engine::set_position(const std::string&              fen,
                                                      const std::vector<std::string>& moves) {
+    wait_for_search_finished();
+    lastCompletedMoves.clear();
+    lastCompletedDepth = 0;
     // Drop the old state and create a new one
     states   = StateListPtr(new std::deque<StateInfo>(1));
     auto err = pos.set(fen, options["UCI_Chess960"], &states->back());
@@ -336,7 +459,12 @@ OptionsMap&       Engine::get_options() { return options; }
 
 std::string Engine::fen() const { return pos.fen(); }
 
-std::optional<PositionSetError> Engine::flip() { return pos.flip(); }
+std::optional<PositionSetError> Engine::flip() {
+    wait_for_search_finished();
+    lastCompletedMoves.clear();
+    lastCompletedDepth = 0;
+    return pos.flip();
+}
 
 std::string Engine::visualize() const {
     std::stringstream ss;

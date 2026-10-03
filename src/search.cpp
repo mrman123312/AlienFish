@@ -245,8 +245,33 @@ void Search::Worker::start_searching() {
     Skill   skill =
       Skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
-    if (!limits.depth && !skill.enabled())
+    if (!limits.depth && !skill.enabled() && !limits.alienStyle)
         bestThread = threads.get_best_thread()->worker.get();
+
+    // Only a fully finished MultiPV iteration may influence style/learning.
+    // Aborted, bound-only and mixed-depth root results never enter the bank.
+    if (main_manager()->updates.onCompleted && !completedRootMoves.empty())
+    {
+        Move chosen = main_manager()->updates.onCompleted(rootPos, completedRootMoves,
+                       completedRootDepth, threads.nodes_searched(), tbConfig.rootInTB);
+        if (limits.alienStyle && !skill.enabled() && chosen != Move::none()
+            && !is_decisive(rootMoves[0].score) && !tbConfig.rootInTB)
+        {
+            auto selected = std::find(completedRootMoves.begin(), completedRootMoves.end(), chosen);
+            if (selected != completedRootMoves.end())
+            {
+                auto target = std::find(rootMoves.begin(), rootMoves.end(), chosen);
+                if (target != rootMoves.end())
+                {
+                    *target = *selected;
+                    std::iter_swap(rootMoves.begin(), target);
+                    rootDepth = completedRootDepth;
+                    bestThread = this;
+                    uciPvSent = false;
+                }
+            }
+        }
+    }
 
     main_manager()->bestPreviousScore        = bestThread->rootMoves[0].score;
     main_manager()->bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
@@ -266,6 +291,8 @@ void Search::Worker::start_searching() {
 
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
     main_manager()->updates.onBestmove(bestmove, ponder);
+    if (main_manager()->updates.onSearchEnd)
+        main_manager()->updates.onSearchEnd();
 }
 
 // Main iterative deepening loop. It calls search() repeatedly with increasing
@@ -321,6 +348,8 @@ bool Search::Worker::iterative_deepening() {
     // use behind-the-scenes to retrieve a set of possible moves.
     if (skill.enabled())
         multiPV = std::max(multiPV, usize(4));
+
+    multiPV = std::max(multiPV, limits.alienCandidates);
 
     multiPV = std::min(multiPV, rootMoves.size());
 
@@ -511,6 +540,12 @@ bool Search::Worker::iterative_deepening() {
 
             if (threads.stop)
                 break;
+        }
+
+        if (mainThread && limits.alienCapture && !threads.stop)
+        {
+            completedRootMoves.assign(rootMoves.begin(), rootMoves.begin() + multiPV);
+            completedRootDepth = rootDepth;
         }
 
         const bool forgottenMate = lastBestMoveScore != -VALUE_INFINITE
@@ -1500,6 +1535,7 @@ moves_loop:  // When in check, search starts here
             {
                 rm.score = rm.uciScore = value;
                 rm.selDepth            = selDepth;
+                rm.verifiedDepth       = depth;
                 rm.unset_inexact();
 
                 if (value >= beta)

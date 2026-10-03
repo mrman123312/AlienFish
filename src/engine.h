@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "misc.h"
+#include "alien.h"
 #include "history.h"
 #include "nnue/network.h"
 #include "nnue/nnue_misc.h"
@@ -111,6 +112,7 @@ class Engine {
     std::string                          fen() const;
     std::optional<PositionSetError>      flip();
     std::string                          visualize() const;
+    std::string                          legacy_command(std::istream&);
     std::vector<std::pair<usize, usize>> get_bound_thread_count_by_numa_node() const;
     std::string                          get_numa_config_as_string() const;
     std::string                          numa_config_information_as_string() const;
@@ -134,6 +136,16 @@ class Engine {
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetwork;
     std::map<NumaIndex, SharedHistories>  sharedHists;
+    Alien::Legacy                       legacy;
+    Search::RootMoves                   lastCompletedMoves;
+    int                                 lastCompletedDepth = 0;
+    bool                                unrestrictedRoot = true;
+    bool                                gambitActive = false;
+    bool                                legacyReady = false;
+    bool                                lastTablebase = false;
+
+    void configure_legacy();
+    Move completed_search(const Position&, const Search::RootMoves&, Depth, u64, bool);
 };
 
 }  // namespace Stockfish

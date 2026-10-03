@@ -1,0 +1,29 @@
+name: AlienFish checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build engine and policy tests
+        run: |
+          make -C src -j2 build ARCH=x86-64-avx2
+          make -C src -j2 alien-unit ARCH=x86-64-avx2
+      - name: Check storage, policy and UCI integration
+        run: |
+          mkdir -p /tmp/alien-unit
+          build/alien_unit /tmp/alien-unit
+          python3 tests/alienfish_test.py --engine src/stockfish -v
+      - name: Upload Linux engine
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlienFish-linux-avx2
+          path: |
+            src/stockfish
+            Copying.txt
+            AUTHORS
+            README.md
+            data/AlienLegacy.afl
+            data/AlienLegacy.metadata.json

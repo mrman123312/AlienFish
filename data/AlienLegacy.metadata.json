@@ -1,0 +1,28 @@
+{
+  "format": "AlienLegacy 1",
+  "generated_utc": "2026-10-03",
+  "source_stockfish_commit": "49ea5ded38315cff8e67f4a677a9e7811612fbf6",
+  "network": "nn-252f33942263.nnue",
+  "bank_sha256": "b1ce4477bbf40641344037fa91d68fa8131c6b2f1da2c0570b11919e3dc2db79",
+  "positions": 19,
+  "move_records": 101,
+  "actual_depth_range": [
+    14,
+    21
+  ],
+  "policy": {
+    "side": "white",
+    "preliminary_min_depth": 10,
+    "verification_min_depth": 14,
+    "min_advantage_cp": 0,
+    "max_loss_cp": 20,
+    "max_plies": 12
+  },
+  "training": {
+    "threads": 2,
+    "hash_mb": 128,
+    "processed_positions": 24,
+    "pending_positions": 100
+  },
+  "scope": "A small analysed starter bank. All legal moves were examined at each processed node; qualifying moves were checked in two passes. This is not an exhaustive opening book or a claim that finite-depth analysis excludes every future blunder."
+}
