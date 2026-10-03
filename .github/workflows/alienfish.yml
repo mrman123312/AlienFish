@@ -7,9 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build engine and policy tests
+      - name: Build profiled engine and policy tests
         run: |
-          make -C src -j2 build ARCH=x86-64-avx2
+          JOBS=2 sh scripts/profile_build.sh x86-64-avx2
           make -C src -j2 alien-unit ARCH=x86-64-avx2
       - name: Check storage, policy and UCI integration
         run: |
